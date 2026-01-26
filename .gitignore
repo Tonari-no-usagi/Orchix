@@ -1,0 +1,5 @@
+/target
+/Cargo.lock
+**/*.rs.bk
+.env
+Rust製Agentic Proxyの必要な機能一覧.md
