@@ -6,15 +6,17 @@ use axum::{
 };
 use std::net::SocketAddr;
 use tracing::info;
+use crate::config::ServerConfig;
 
-pub async fn run_server() -> anyhow::Result<()> {
+pub async fn run_server(config: ServerConfig) -> anyhow::Result<()> {
     // ルーターの設定
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(ws_handler));
 
-    // アドレスの設定
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    // 設定値に基づいてアドレスを作成
+    let addr_str = format!("{}:{}", config.host, config.port);
+    let addr: SocketAddr = addr_str.parse()?;
     info!("listening on {}", addr);
 
     // サーバーの起動

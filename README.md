@@ -20,7 +20,7 @@ Orchix is a lightweight, modular, and high-performance **Agentic Proxy** built w
 
 ### Core MVP
 - [x] **Networking**: HTTP/WS communication foundation using `axum`.
-- [ ] **Config**: Flexible configuration management (TOML/ENV).
+- [x] **Config**: Flexible configuration management (TOML/ENV).
 - [ ] **Request Routing**: Rule-based model selection and traffic control.
 - [ ] **Tool Call Interception**: Guardrails for tool execution requests.
 - [ ] **Streaming Processing**: Real-time analysis of streaming responses.

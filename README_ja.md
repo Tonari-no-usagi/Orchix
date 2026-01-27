@@ -18,7 +18,7 @@ Orchixは、Rustで構築された軽量かつモジュール式の高性能な 
 
 ### コア機能 (MVP)
 - [x] **Networking**: `axum` を使用したHTTP/WS通信の基礎の実装済み。
-- [ ] **Config**: TOML/ENVによる柔軟な設定管理。
+- [x] **Config**: TOML/ENVによる柔軟な設定管理。
 - [ ] **Request Routing**: ルールベースのモデル選択とトラフィック制御。
 - [ ] **Tool Call Interception**: ツール実行要求に対するガードレール。
 - [ ] **Streaming Processing**: ストリーミングレスポンスのリアルタイム解析。
