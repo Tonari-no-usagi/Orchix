@@ -4,3 +4,13 @@ port = 3000
 
 [log]
 level = "info"
+
+[[routing]]
+path = "/v1/chat"
+target_model = "gpt-4"
+target_url = "https://api.openai.com/v1/chat/completions"
+
+[[routing]]
+path = "/v1/images"
+target_model = "dalle-3"
+target_url = "https://api.openai.com/v1/images/generations"

@@ -6,6 +6,7 @@ use std::env;
 pub struct AppConfig {
     pub server: ServerConfig,
     pub log: LogConfig,
+    pub routing: Vec<crate::routing::RouteRule>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
