@@ -14,3 +14,6 @@ target_url = "https://api.openai.com/v1/chat/completions"
 path = "/v1/images"
 target_model = "dalle-3"
 target_url = "https://api.openai.com/v1/images/generations"
+
+[interception]
+forbidden_tools = ["rm_rf", "delete_database", "send_email"]

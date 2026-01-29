@@ -1,0 +1,9 @@
+{
+  "tool_calls": [
+    {
+      "function": {
+        "name": "rm_rf"
+      }
+    }
+  ]
+}

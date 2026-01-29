@@ -7,6 +7,7 @@ pub struct AppConfig {
     pub server: ServerConfig,
     pub log: LogConfig,
     pub routing: Vec<crate::routing::RouteRule>,
+    pub interception: crate::interception::InterceptionConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]

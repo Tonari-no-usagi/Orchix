@@ -9,10 +9,23 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use crate::config::ServerConfig;
 use crate::routing::{RouteRule, Router as OrchixRouter};
+use crate::interception::{InterceptionConfig, Interceptor};
 
-pub async fn run_server(config: ServerConfig, rules: Vec<RouteRule>) -> anyhow::Result<()> {
-    // ルーター（Orchix側）の初期化
-    let orchix_router = Arc::new(OrchixRouter::new(rules));
+pub struct AppState {
+    pub router: OrchixRouter,
+    pub interceptor: Interceptor,
+}
+
+pub async fn run_server(
+    config: ServerConfig, 
+    rules: Vec<RouteRule>,
+    interception_config: InterceptionConfig,
+) -> anyhow::Result<()> {
+    // 状態の初期化
+    let state = Arc::new(AppState {
+        router: OrchixRouter::new(rules),
+        interceptor: Interceptor::new(interception_config),
+    });
 
     // HTTPルーター（Axum側）の設定
     let app = Router::new()
@@ -20,7 +33,7 @@ pub async fn run_server(config: ServerConfig, rules: Vec<RouteRule>) -> anyhow::
         .route("/ws", get(ws_handler))
         // すべてのパスを一旦受け入れ、内部ルーターで処理
         .fallback(any(proxy_handler))
-        .with_state(orchix_router);
+        .with_state(state);
 
     // 設定値に基づいてアドレスを作成
     let addr_str = format!("{}:{}", config.host, config.port);
@@ -63,12 +76,30 @@ async fn handle_socket(mut socket: WebSocket) {
 
 // プロキシ（ルーティング）用ハンドラ
 async fn proxy_handler(
-    State(router): State<Arc<OrchixRouter>>,
+    State(state): State<Arc<AppState>>,
     req: Request,
 ) -> impl IntoResponse {
-    let path = req.uri().path();
-    
-    if let Some(rule) = router.resolve(path) {
+    let path = req.uri().path().to_string();
+    let (parts, body) = req.into_parts();
+
+    // ボディの読み取り（1MB制限）
+    let bytes = match axum::body::to_bytes(body, 1024 * 1024).await {
+        Ok(b) => b,
+        Err(e) => {
+            warn!("Failed to read request body: {}", e);
+            return (axum::http::StatusCode::BAD_REQUEST, "Failed to read body").into_response();
+        }
+    };
+
+    // JSONとしてパースを試みる
+    if let Ok(json_body) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+        // ツール呼び出しの検証（インターセプション）
+        if let Err(msg) = state.interceptor.validate_tools(&json_body) {
+            return (axum::http::StatusCode::FORBIDDEN, msg).into_response();
+        }
+    }
+
+    if let Some(rule) = state.router.resolve(&path) {
         info!("Matched rule: {} -> {} ({})", rule.path, rule.target_model, rule.target_url);
         format!("Routing request to {} (Model: {})", rule.target_url, rule.target_model).into_response()
     } else {
