@@ -10,6 +10,13 @@ use tracing::{info, warn};
 use crate::config::ServerConfig;
 use crate::routing::{RouteRule, Router as OrchixRouter};
 use crate::interception::{InterceptionConfig, Interceptor};
+use crate::streaming::StreamingAnalyzer;
+use futures::stream;
+use axum::response::sse::Sse;
+use std::convert::Infallible;
+use tokio_stream::StreamExt as _;
+use std::time::Duration;
+use bytes::Bytes;
 
 pub struct AppState {
     pub router: OrchixRouter,
@@ -31,6 +38,7 @@ pub async fn run_server(
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(ws_handler))
+        .route("/v1/stream_test", get(stream_test_handler))
         // すべてのパスを一旦受け入れ、内部ルーターで処理
         .fallback(any(proxy_handler))
         .with_state(state);
@@ -80,7 +88,7 @@ async fn proxy_handler(
     req: Request,
 ) -> impl IntoResponse {
     let path = req.uri().path().to_string();
-    let (parts, body) = req.into_parts();
+    let (_parts, body) = req.into_parts();
 
     // ボディの読み取り（1MB制限）
     let bytes = match axum::body::to_bytes(body, 1024 * 1024).await {
@@ -106,4 +114,44 @@ async fn proxy_handler(
         warn!("No route matched for path: {}", path);
         "No matching route found".into_response()
     }
+}
+
+// ストリーミングテスト用ハンドラ
+async fn stream_test_handler(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    info!("Stream test requested");
+
+    let stream = stream::iter(vec![
+        Ok::<&str, Infallible>(r#"{"choices":[{"delta":{"content":"Hello, "}}]}"#),
+        Ok::<&str, Infallible>(r#"{"choices":[{"delta":{"content":"this "}}]}"#),
+        Ok::<&str, Infallible>(r#"{"choices":[{"delta":{"content":"is "}}]}"#),
+        Ok::<&str, Infallible>(r#"{"choices":[{"delta":{"content":"a "}}]}"#),
+        Ok::<&str, Infallible>(r#"{"choices":[{"delta":{"content":"stream. "}}]}"#),
+        // 途中からツール呼び出しをシミュレート
+        Ok::<&str, Infallible>(r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"get_weather"}}]}}]}"#),
+        Ok::<&str, Infallible>(r#"{"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"name":"rm_rf"}}]}}]}"#),
+        Ok::<&str, Infallible>("[DONE]"),
+    ])
+    .throttle(Duration::from_millis(500));
+
+    // StreamingAnalyzer でラップして検証を行う
+    let bytes_stream = futures::StreamExt::map(stream, |res| {
+        match res {
+            Ok(data) => {
+                let formatted = if data == "[DONE]" {
+                    "data: [DONE]\n\n".to_string()
+                } else {
+                    format!("data: {}\n\n", data)
+                };
+                Ok::<Bytes, axum::Error>(Bytes::from(formatted))
+            },
+            Err(_) => unreachable!(),
+        }
+    });
+
+    let analyzer = StreamingAnalyzer::new(Box::pin(bytes_stream), Arc::new(state.interceptor.clone()));
+    
+    Sse::new(analyzer)
+        .keep_alive(axum::response::sse::KeepAlive::default())
 }

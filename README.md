@@ -23,7 +23,7 @@ Orchix is a lightweight, modular, and high-performance **Agentic Proxy** built w
 - [x] **Config**: Flexible configuration management (TOML/ENV).
 - [x] **Request Routing**: Rule-based model selection and traffic control.
 - [x] **Tool Call Interception**: Guardrails for tool execution requests.
-- [ ] **Streaming Processing**: Real-time analysis of streaming responses.
+- [x] **Streaming Processing**: Real-time analysis of streaming responses.
 - [ ] **Security**: JWT/API Key authentication and audit logging.
 - [ ] **Caching**: Local/KV caching for response reuse.
 - [ ] **Cost Control**: Token tracking and budget management.

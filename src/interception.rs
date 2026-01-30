@@ -7,6 +7,7 @@ pub struct InterceptionConfig {
     pub forbidden_tools: Vec<String>,
 }
 
+#[derive(Clone)]
 pub struct Interceptor {
     pub config: InterceptionConfig,
 }

@@ -21,7 +21,7 @@ Orchixは、Rustで構築された軽量かつモジュール式の高性能な 
 - [x] **Config**: TOML/ENVによる柔軟な設定管理。
 - [x] **Request Routing**: ルールベースのモデル選択とトラフィック制御。
 - [x] **Tool Call Interception**: ツール実行要求に対するガードレール。
-- [ ] **Streaming Processing**: ストリーミングレスポンスのリアルタイム解析。
+- [x] **Streaming Processing**: ストリーミングレスポンスのリアルタイム解析。
 - [ ] **Security**: JWT/APIキー認証と監査ログ。
 - [ ] **Caching**: レスポンス再利用のためのローカル/KVキャッシュ。
 - [ ] **Cost Control**: トークン追跡と予算管理。
