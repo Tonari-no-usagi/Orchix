@@ -2,11 +2,13 @@ use tracing::info;
 use tracing_subscriber::{FmtSubscriber, EnvFilter};
 use std::str::FromStr;
 
+
 mod networking;
 mod config;
 mod routing;
 mod interception;
 mod streaming;
+mod auth;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -26,7 +28,12 @@ async fn main() -> anyhow::Result<()> {
     info!("Configuration loaded: {:?}", app_config);
 
     // Networkingサーバーの起動
-    networking::run_server(app_config.server, app_config.routing, app_config.interception).await?;
+    networking::run_server(
+        app_config.server, 
+        app_config.routing, 
+        app_config.interception,
+        app_config.security,
+    ).await?;
 
     Ok(())
 }

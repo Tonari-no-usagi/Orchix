@@ -7,10 +7,11 @@ use axum::{
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::{info, warn};
-use crate::config::ServerConfig;
 use crate::routing::{RouteRule, Router as OrchixRouter};
 use crate::interception::{InterceptionConfig, Interceptor};
 use crate::streaming::StreamingAnalyzer;
+use crate::config::{ServerConfig, SecurityConfig};
+use crate::auth::auth_middleware;
 use futures::stream;
 use axum::response::sse::Sse;
 use std::convert::Infallible;
@@ -21,26 +22,30 @@ use bytes::Bytes;
 pub struct AppState {
     pub router: OrchixRouter,
     pub interceptor: Interceptor,
+    pub security: SecurityConfig,
 }
 
 pub async fn run_server(
     config: ServerConfig, 
     rules: Vec<RouteRule>,
     interception_config: InterceptionConfig,
+    security_config: SecurityConfig,
 ) -> anyhow::Result<()> {
     // 状態の初期化
     let state = Arc::new(AppState {
         router: OrchixRouter::new(rules),
         interceptor: Interceptor::new(interception_config),
+        security: security_config,
     });
+
+    let auth_layer = axum::middleware::from_fn_with_state(state.clone(), auth_middleware);
 
     // HTTPルーター（Axum側）の設定
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/ws", get(ws_handler))
-        .route("/v1/stream_test", get(stream_test_handler))
-        // すべてのパスを一旦受け入れ、内部ルーターで処理
-        .fallback(any(proxy_handler))
+        .route("/ws", get(ws_handler).layer(auth_layer.clone()))
+        .route("/v1/stream_test", get(stream_test_handler).layer(auth_layer.clone()))
+        .fallback(any(proxy_handler).layer(auth_layer))
         .with_state(state);
 
     // 設定値に基づいてアドレスを作成

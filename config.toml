@@ -17,3 +17,6 @@ target_url = "https://api.openai.com/v1/images/generations"
 
 [interception]
 forbidden_tools = ["rm_rf", "delete_database", "send_email"]
+
+[security]
+api_keys = ["secret-orchix-key-2026"]
