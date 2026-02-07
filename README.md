@@ -25,7 +25,7 @@ Orchix is a lightweight, modular, and high-performance **Agentic Proxy** built w
 - [x] **Tool Call Interception**: Guardrails for tool execution requests.
 - [x] **Streaming Processing**: Real-time analysis of streaming responses.
 - [x] **Security**: JWT/API Key authentication and audit logging.
-- [ ] **Caching**: Local/KV caching for response reuse.
+- [x] **Caching**: Local/KV caching for response reuse.
 - [ ] **Cost Control**: Token tracking and budget management.
 - [ ] **Observability**: Metrics, logs, and tracing (Prometheus/OpenTelemetry).
 

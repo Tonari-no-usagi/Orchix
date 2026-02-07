@@ -9,6 +9,7 @@ mod routing;
 mod interception;
 mod streaming;
 mod auth;
+mod cache;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -33,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
         app_config.routing, 
         app_config.interception,
         app_config.security,
+        app_config.caching,
     ).await?;
 
     Ok(())

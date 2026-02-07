@@ -14,16 +14,28 @@ pub struct StreamingAnalyzer<S> {
     interceptor: Arc<Interceptor>,
     buffer: BytesMut,
     pending_events: std::collections::VecDeque<Result<Event, axum::Error>>,
+    full_response_buffer: BytesMut,
+    cache_info: Option<(crate::cache::OrchixCache, crate::cache::CacheKey)>,
 }
 
 impl<S> StreamingAnalyzer<S> {
-    pub fn new(inner: S, interceptor: Arc<Interceptor>) -> Self {
+    pub fn new(
+        inner: S, 
+        interceptor: Arc<Interceptor>, 
+        cache_info: Option<(crate::cache::OrchixCache, crate::cache::CacheKey)>
+    ) -> Self {
         Self { 
             inner, 
             interceptor,
             buffer: BytesMut::new(),
             pending_events: std::collections::VecDeque::new(),
+            full_response_buffer: BytesMut::new(),
+            cache_info,
         }
+    }
+
+    pub fn get_full_response(&self) -> Bytes {
+        self.full_response_buffer.clone().freeze()
     }
 
     /// 改行区切りで SSE 行を抽出して解析する
@@ -51,7 +63,7 @@ impl<S> StreamingAnalyzer<S> {
                 }
 
                 // Event として再構築して追加
-                self.pending_events.push_back(Ok(Event::default().data(data)));
+                self.pending_events.push_back(Ok(axum::response::sse::Event::default().data(data)));
             }
         }
     }
@@ -89,6 +101,7 @@ where
         match Pin::new(&mut self.inner).poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
                 self.buffer.extend_from_slice(&bytes);
+                self.full_response_buffer.extend_from_slice(&bytes);
                 self.process_buffer();
                 
                 // バッファを処理した後にイベントがあれば返す
@@ -106,6 +119,21 @@ where
             Poll::Ready(None) => {
                 // ストリーム終了時に残りのバッファを処理
                 self.process_buffer();
+                
+                // キャッシュ情報があれば保存
+                if let Some((cache, key)) = self.cache_info.take() {
+                    let body = self.full_response_buffer.clone().freeze();
+                    tokio::spawn(async move {
+                        let mut headers = std::collections::HashMap::new();
+                        headers.insert("content-type".to_string(), "text/event-stream".to_string());
+                        cache.set(key, crate::cache::CachedResponse {
+                            status: 200,
+                            headers,
+                            body,
+                        }).await;
+                    });
+                }
+
                 if let Some(event) = self.pending_events.pop_front() {
                     Poll::Ready(Some(event))
                 } else {

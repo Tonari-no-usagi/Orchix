@@ -20,3 +20,8 @@ forbidden_tools = ["rm_rf", "delete_database", "send_email"]
 
 [security]
 api_keys = ["secret-orchix-key-2026"]
+
+[caching]
+enabled = true
+ttl_seconds = 3600
+max_capacity = 1000

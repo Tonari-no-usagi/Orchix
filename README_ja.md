@@ -23,7 +23,7 @@ Orchixは、Rustで構築された軽量かつモジュール式の高性能な 
 - [x] **Tool Call Interception**: ツール実行要求に対するガードレール。
 - [x] **Streaming Processing**: ストリーミングレスポンスのリアルタイム解析。
 - [x] **Security**: JWT/APIキー認証と監査ログ。
-- [ ] **Caching**: レスポンス再利用のためのローカル/KVキャッシュ。
+- [x] **Caching**: レスポンス再利用のためのローカル/KVキャッシュ。
 - [ ] **Cost Control**: トークン追跡と予算管理。
 - [ ] **Observability**: メトリクス、ログ、トレース (Prometheus/OpenTelemetry)。
 

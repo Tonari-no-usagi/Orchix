@@ -10,8 +10,9 @@ use tracing::{info, warn};
 use crate::routing::{RouteRule, Router as OrchixRouter};
 use crate::interception::{InterceptionConfig, Interceptor};
 use crate::streaming::StreamingAnalyzer;
-use crate::config::{ServerConfig, SecurityConfig};
+use crate::config::{ServerConfig, SecurityConfig, CacheConfig};
 use crate::auth::auth_middleware;
+use crate::cache::{OrchixCache, CacheKey, CachedResponse};
 use futures::stream;
 use axum::response::sse::Sse;
 use std::convert::Infallible;
@@ -23,6 +24,8 @@ pub struct AppState {
     pub router: OrchixRouter,
     pub interceptor: Interceptor,
     pub security: SecurityConfig,
+    pub cache: OrchixCache,
+    pub caching_config: CacheConfig,
 }
 
 pub async fn run_server(
@@ -30,12 +33,15 @@ pub async fn run_server(
     rules: Vec<RouteRule>,
     interception_config: InterceptionConfig,
     security_config: SecurityConfig,
+    cache_config: CacheConfig,
 ) -> anyhow::Result<()> {
     // 状態の初期化
     let state = Arc::new(AppState {
         router: OrchixRouter::new(rules),
         interceptor: Interceptor::new(interception_config),
         security: security_config,
+        cache: OrchixCache::new(&cache_config),
+        caching_config: cache_config,
     });
 
     let auth_layer = axum::middleware::from_fn_with_state(state.clone(), auth_middleware);
@@ -112,9 +118,45 @@ async fn proxy_handler(
         }
     }
 
+    // キャッシュの確認
+    let cache_key = if state.caching_config.enabled {
+        let key = CacheKey::new(&path, &bytes);
+        if let Some(cached) = state.cache.get(&key).await {
+            info!("Cache hit for path: {}", path);
+            let mut res = cached.body.into_response();
+            *res.status_mut() = axum::http::StatusCode::from_u16(cached.status).unwrap();
+            for (k, v) in cached.headers {
+                if let Ok(name) = axum::http::HeaderName::from_bytes(k.as_bytes()) {
+                    if let Ok(value) = axum::http::HeaderValue::from_str(&v) {
+                        res.headers_mut().insert(name, value);
+                    }
+                }
+            }
+            return res;
+        }
+        Some(key)
+    } else {
+        None
+    };
+
     if let Some(rule) = state.router.resolve(&path) {
         info!("Matched rule: {} -> {} ({})", rule.path, rule.target_model, rule.target_url);
-        format!("Routing request to {} (Model: {})", rule.target_url, rule.target_model).into_response()
+        
+        let response_text = format!("Routing request to {} (Model: {})", rule.target_url, rule.target_model);
+        
+        // キャッシュの保存（非ストリーミングの場合の暫定的な実装）
+        if let Some(key) = cache_key {
+            let mut headers = std::collections::HashMap::new();
+            headers.insert("content-type".to_string(), "text/plain; charset=utf-8".to_string());
+            
+            state.cache.set(key, CachedResponse {
+                status: 200,
+                headers,
+                body: response_text.clone().into(),
+            }).await;
+        }
+
+        response_text.into_response()
     } else {
         warn!("No route matched for path: {}", path);
         "No matching route found".into_response()
@@ -124,7 +166,23 @@ async fn proxy_handler(
 // ストリーミングテスト用ハンドラ
 async fn stream_test_handler(
     State(state): State<Arc<AppState>>,
+    req: Request,
 ) -> impl IntoResponse {
+    let path = req.uri().path().to_string();
+    
+    // キャッシュの確認
+    if state.caching_config.enabled {
+        // テスト用なので固定の空ボディでハッシュ
+        let key = CacheKey::new(&path, &[]);
+        if let Some(cached) = state.cache.get(&key).await {
+            info!("Cache hit (streaming) for path: {}", path);
+            let mut res = cached.body.into_response();
+            // SSEとして返すためのヘッダー設定
+            res.headers_mut().insert(axum::http::header::CONTENT_TYPE, axum::http::HeaderValue::from_static("text/event-stream"));
+            return res;
+        }
+    }
+
     info!("Stream test requested");
 
     let stream = stream::iter(vec![
@@ -155,8 +213,20 @@ async fn stream_test_handler(
         }
     });
 
-    let analyzer = StreamingAnalyzer::new(Box::pin(bytes_stream), Arc::new(state.interceptor.clone()));
+    let cache_info = if state.caching_config.enabled {
+        let key = CacheKey::new(&path, &[]);
+        Some((state.cache.clone(), key))
+    } else {
+        None
+    };
+
+    let analyzer = StreamingAnalyzer::new(
+        Box::pin(bytes_stream), 
+        Arc::new(state.interceptor.clone()),
+        cache_info,
+    );
     
     Sse::new(analyzer)
         .keep_alive(axum::response::sse::KeepAlive::default())
+        .into_response()
 }

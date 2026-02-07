@@ -3,12 +3,20 @@ use config::{Config, ConfigError, File, Environment};
 use std::env;
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct CacheConfig {
+    pub enabled: bool,
+    pub ttl_seconds: u64,
+    pub max_capacity: u64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub log: LogConfig,
     pub routing: Vec<crate::routing::RouteRule>,
     pub interception: crate::interception::InterceptionConfig,
     pub security: SecurityConfig,
+    pub caching: CacheConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
