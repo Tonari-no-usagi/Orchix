@@ -10,7 +10,7 @@ use tracing::{info, warn};
 use crate::routing::{RouteRule, Router as OrchixRouter};
 use crate::interception::{InterceptionConfig, Interceptor};
 use crate::streaming::StreamingAnalyzer;
-use crate::config::{ServerConfig, SecurityConfig, CacheConfig};
+use crate::config::{ServerConfig, SecurityConfig, CacheConfig, CostConfig};
 use crate::auth::auth_middleware;
 use crate::cache::{OrchixCache, CacheKey, CachedResponse};
 use futures::stream;
@@ -19,6 +19,7 @@ use std::convert::Infallible;
 use tokio_stream::StreamExt as _;
 use std::time::Duration;
 use bytes::Bytes;
+use crate::cost_control::CostManager;
 
 pub struct AppState {
     pub router: OrchixRouter,
@@ -26,6 +27,7 @@ pub struct AppState {
     pub security: SecurityConfig,
     pub cache: OrchixCache,
     pub caching_config: CacheConfig,
+    pub cost_manager: CostManager,
 }
 
 pub async fn run_server(
@@ -34,6 +36,7 @@ pub async fn run_server(
     interception_config: InterceptionConfig,
     security_config: SecurityConfig,
     cache_config: CacheConfig,
+    cost_config: CostConfig,
 ) -> anyhow::Result<()> {
     // 状態の初期化
     let state = Arc::new(AppState {
@@ -42,6 +45,7 @@ pub async fn run_server(
         security: security_config,
         cache: OrchixCache::new(&cache_config),
         caching_config: cache_config,
+        cost_manager: CostManager::new(cost_config),
     });
 
     let auth_layer = axum::middleware::from_fn_with_state(state.clone(), auth_middleware);
@@ -109,6 +113,25 @@ async fn proxy_handler(
             return (axum::http::StatusCode::BAD_REQUEST, "Failed to read body").into_response();
         }
     };
+
+    // コスト制御：レート制限と予算のチェック
+    let client_id = "default_user"; // 本来は認証情報から取得
+    if !state.cost_manager.check_rate_limit(client_id).await {
+        return (axum::http::StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded").into_response();
+    }
+    if !state.cost_manager.check_budget(client_id).await {
+        return (axum::http::StatusCode::FORBIDDEN, "Daily budget exceeded").into_response();
+    }
+
+    // トークン数のチェック
+    let input_text = String::from_utf8_lossy(&bytes);
+    let estimated_tokens = state.cost_manager.estimate_tokens(&input_text);
+    if !state.cost_manager.is_within_max_tokens(estimated_tokens) {
+        return (axum::http::StatusCode::PAYLOAD_TOO_LARGE, "Request tokens exceed limit").into_response();
+    }
+    
+    // 使用量の記録（リクエスト分）
+    state.cost_manager.track_usage(client_id, estimated_tokens).await;
 
     // JSONとしてパースを試みる
     if let Ok(json_body) = serde_json::from_slice::<serde_json::Value>(&bytes) {

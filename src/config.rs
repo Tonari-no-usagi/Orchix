@@ -10,6 +10,14 @@ pub struct CacheConfig {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct CostConfig {
+    pub enabled: bool,
+    pub hourly_rate_limit: u32,
+    pub daily_budget_tokens: u32,
+    pub max_request_tokens: u32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub log: LogConfig,
@@ -17,6 +25,7 @@ pub struct AppConfig {
     pub interception: crate::interception::InterceptionConfig,
     pub security: SecurityConfig,
     pub caching: CacheConfig,
+    pub cost: CostConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -48,6 +57,10 @@ impl AppConfig {
             .set_default("server.port", 3000)?
             .set_default("log.level", "info")?
             .set_default("security.api_keys", Vec::<String>::new())?
+            .set_default("cost.enabled", false)?
+            .set_default("cost.hourly_rate_limit", 100)?
+            .set_default("cost.daily_budget_tokens", 100000)?
+            .set_default("cost.max_request_tokens", 4000)?
             // 設定ファイル (config.toml) の読み込み
             .add_source(File::with_name("config").required(false))
             // 環境に応じた設定ファイル (config/development.toml など) の読み込み

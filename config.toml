@@ -25,3 +25,9 @@ api_keys = ["secret-orchix-key-2026"]
 enabled = true
 ttl_seconds = 3600
 max_capacity = 1000
+
+[cost]
+enabled = true
+hourly_rate_limit = 1000
+daily_budget_tokens = 1000000
+max_request_tokens = 8192

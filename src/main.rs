@@ -10,6 +10,7 @@ mod interception;
 mod streaming;
 mod auth;
 mod cache;
+mod cost_control;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -35,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
         app_config.interception,
         app_config.security,
         app_config.caching,
+        app_config.cost,
     ).await?;
 
     Ok(())

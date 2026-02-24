@@ -24,7 +24,7 @@ Orchixは、Rustで構築された軽量かつモジュール式の高性能な 
 - [x] **Streaming Processing**: ストリーミングレスポンスのリアルタイム解析。
 - [x] **Security**: JWT/APIキー認証と監査ログ。
 - [x] **Caching**: レスポンス再利用のためのローカル/KVキャッシュ。
-- [ ] **Cost Control**: トークン追跡と予算管理。
+- [x] **Cost Control**: トークン追跡と予算管理済み。
 - [ ] **Observability**: メトリクス、ログ、トレース (Prometheus/OpenTelemetry)。
 
 ### エージェント機能
